@@ -23,3 +23,9 @@ def cambiar_estado(request, pk, estado):
     pedido.estado = estado
     pedido.save()
     return redirect('lista_pedidos')
+
+def borrar_pedido(request, pk):
+    pedido = get_object_or_404(Pedido, pk=pk)
+    pedido.delete()
+    return redirect('lista_pedidos')
+

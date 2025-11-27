@@ -131,6 +131,7 @@
                       <a href="{% url 'cambiar_estado' p.id 'PENDIENTE' %}" class="btn btn-outline-secondary">Pend.</a>
                       <a href="{% url 'cambiar_estado' p.id 'LISTO' %}" class="btn btn-outline-info">Listo</a>
                       <a href="{% url 'cambiar_estado' p.id 'ENTREGADO' %}" class="btn btn-outline-success">Entregado</a>
+                      <a href="{% url 'borrar_pedido' p.id %}" class="btn btn-outline-danger" onclick="return confirm('¿Seguro que quieres borrar este pedido?');">Borrar</a>
                     </div>
                   </td>
                 </tr>
