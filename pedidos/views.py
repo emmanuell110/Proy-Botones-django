@@ -3,7 +3,6 @@ from .models import Pedido
 from .forms import PedidoForm
 
 def lista_pedidos(request):
-    # Crear pedido nuevo
     if request.method == 'POST':
         form = PedidoForm(request.POST)
         if form.is_valid():
