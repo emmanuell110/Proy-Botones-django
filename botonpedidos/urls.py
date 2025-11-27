@@ -2,6 +2,7 @@ from django.contrib import admin
 from django.urls import path, include
 
 urlpatterns = [
-    path("admin/", admin.site.urls),
-    path("api/", include("api.urls")),  # <- aquí montamos nuestra API
+    path('', include('pedidos.urls')),   # 👈 raíz del sitio = app pedidos
+    path('api/', include('api.urls')),   # API para el botón físico
+    path('admin/', admin.site.urls),
 ]
