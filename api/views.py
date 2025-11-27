@@ -1,58 +1,66 @@
-from django.http import JsonResponse
+# api/views.py
 import json
+from collections import deque
+from django.http import JsonResponse
+from django.views.decorators.csrf import csrf_exempt  # 👈 IMPORTANTE
 
-# "Memoria" sencilla en variables globales
-datos_sensor1 = []  # número de pedidos
-datos_sensor2 = []  # tiempo en minutos
-UMBRAL_TIEMPO = 15  # 15 minutos
+# memoria simple de lecturas (ejemplo)
+lecturas = deque(maxlen=3)
 
-
-def promedio(lista):
-    if not lista:
-        return 0
-    return sum(lista) / len(lista)
-
-
+@csrf_exempt                     # 👈 DESACTIVA CSRF SOLO AQUÍ
 def lectura(request):
-    if request.method != "POST":
-        return JsonResponse({"error": "Método no permitido"}, status=405)
+    if request.method == "POST":
+        try:
+            data = json.loads(request.body.decode("utf-8"))
+        except json.JSONDecodeError:
+            return JsonResponse({"error": "JSON inválido"}, status=400)
 
-    try:
-        data = json.loads(request.body.decode("utf-8"))
-    except json.JSONDecodeError:
-        data = {}
+        sensor1 = data.get("sensor1", 0)
+        sensor2 = data.get("sensor2", 0)
 
-    sensor1 = data.get("sensor1", 0)
-    sensor2 = data.get("sensor2", 0)
+        lecturas.append({"sensor1": sensor1, "sensor2": sensor2})
 
-    # Guardar sólo los últimos 3 valores de cada sensor
-    datos_sensor1.append(sensor1)
-    datos_sensor2.append(sensor2)
+        prom1 = sum(l["sensor1"] for l in lecturas) / len(lecturas)
+        prom2 = sum(l["sensor2"] for l in lecturas) / len(lecturas)
 
-    del datos_sensor1[:-3]
-    del datos_sensor2[:-3]
+        # Lógica para decidir color del LED (ajústala a tu gusto)
+        if prom1 <= 5:   # por ejemplo: pocos pedidos → todo relax
+            led = "GREEN"
+        else:            # muchos pedidos → saturación
+            led = "RED"
 
-    prom1 = promedio(datos_sensor1)
-    prom2 = promedio(datos_sensor2)
+        return JsonResponse(
+            {
+                "led": led,
+                "promedio_sensor1": prom1,
+                "promedio_sensor2": prom2,
+            }
+        )
 
-    led = "GREEN" if prom2 <= UMBRAL_TIEMPO else "RED"
-
-    return JsonResponse({
-        "led": led,
-        "promedio_pedidos": prom1,
-        "promedio_tiempo": prom2,
-        "ultimos_sensor1": datos_sensor1,
-        "ultimos_sensor2": datos_sensor2,
-    })
+    return JsonResponse({"error": "Método no permitido"}, status=405)
 
 
 def promedios(request):
-    prom1 = promedio(datos_sensor1)
-    prom2 = promedio(datos_sensor2)
+    # si ya la tenías hecha, déjala igual;
+    # solo asegúrate de que sea GET
+    if not lecturas:
+        return JsonResponse(
+            {
+                "promedio_sensor1": 0,
+                "promedio_sensor2": 0,
+                "ultimos_sensor1": [],
+                "ultimos_sensor2": [],
+            }
+        )
 
-    return JsonResponse({
-        "promedio_sensor1": prom1,
-        "promedio_sensor2": prom2,
-        "ultimos_sensor1": datos_sensor1,
-        "ultimos_sensor2": datos_sensor2,
-    })
+    prom1 = sum(l["sensor1"] for l in lecturas) / len(lecturas)
+    prom2 = sum(l["sensor2"] for l in lecturas) / len(lecturas)
+
+    return JsonResponse(
+        {
+            "promedio_sensor1": prom1,
+            "promedio_sensor2": prom2,
+            "ultimos_sensor1": [l["sensor1"] for l in lecturas],
+            "ultimos_sensor2": [l["sensor2"] for l in lecturas],
+        }
+    )
