@@ -1,66 +1,54 @@
 # api/views.py
 import json
-from collections import deque
 from django.http import JsonResponse
-from django.views.decorators.csrf import csrf_exempt  # 👈 IMPORTANTE
+from django.views.decorators.csrf import csrf_exempt
+from pedidos.models import Pedido   # 👈 importa tu modelo
 
-# memoria simple de lecturas (ejemplo)
-lecturas = deque(maxlen=3)
-
-@csrf_exempt                     # 👈 DESACTIVA CSRF SOLO AQUÍ
+@csrf_exempt
 def lectura(request):
-    if request.method == "POST":
-        try:
-            data = json.loads(request.body.decode("utf-8"))
-        except json.JSONDecodeError:
-            return JsonResponse({"error": "JSON inválido"}, status=400)
+    if request.method != "POST":
+        return JsonResponse({"error": "Método no permitido"}, status=405)
 
-        sensor1 = data.get("sensor1", 0)
-        sensor2 = data.get("sensor2", 0)
+    try:
+        data = json.loads(request.body.decode("utf-8"))
+    except json.JSONDecodeError:
+        return JsonResponse({"error": "JSON inválido"}, status=400)
 
-        lecturas.append({"sensor1": sensor1, "sensor2": sensor2})
+    accion = data.get("accion")  # "PENDIENTE", "LISTO", "ENTREGADO"
+    sensor1 = data.get("sensor1", 0)
+    sensor2 = data.get("sensor2", 0)
 
-        prom1 = sum(l["sensor1"] for l in lecturas) / len(lecturas)
-        prom2 = sum(l["sensor2"] for l in lecturas) / len(lecturas)
+    # Buscar el último pedido creado
+    pedido = Pedido.objects.order_by('-fecha_creacion').first()
 
-        # Lógica para decidir color del LED (ajústala a tu gusto)
-        if prom1 <= 5:   # por ejemplo: pocos pedidos → todo relax
-            led = "GREEN"
-        else:            # muchos pedidos → saturación
-            led = "RED"
+    if not pedido:
+        # No hay pedidos en la BD
+        return JsonResponse({
+            "led": "RED",
+            "mensaje": "No hay pedidos para actualizar",
+        })
 
-        return JsonResponse(
-            {
-                "led": led,
-                "promedio_sensor1": prom1,
-                "promedio_sensor2": prom2,
-            }
-        )
+    # Cambiar estado según la acción
+    if accion == "PENDIENTE":
+        pedido.estado = "PENDIENTE"
+    elif accion == "LISTO":
+        pedido.estado = "LISTO"
+    elif accion == "ENTREGADO":
+        pedido.estado = "ENTREGADO"
+    else:
+        # Si llega algo raro, no cambiamos nada
+        return JsonResponse({
+            "led": "RED",
+            "mensaje": f"Acción desconocida: {accion}",
+        })
 
-    return JsonResponse({"error": "Método no permitido"}, status=405)
+    pedido.save()
 
-
-def promedios(request):
-    # si ya la tenías hecha, déjala igual;
-    # solo asegúrate de que sea GET
-    if not lecturas:
-        return JsonResponse(
-            {
-                "promedio_sensor1": 0,
-                "promedio_sensor2": 0,
-                "ultimos_sensor1": [],
-                "ultimos_sensor2": [],
-            }
-        )
-
-    prom1 = sum(l["sensor1"] for l in lecturas) / len(lecturas)
-    prom2 = sum(l["sensor2"] for l in lecturas) / len(lecturas)
-
-    return JsonResponse(
-        {
-            "promedio_sensor1": prom1,
-            "promedio_sensor2": prom2,
-            "ultimos_sensor1": [l["sensor1"] for l in lecturas],
-            "ultimos_sensor2": [l["sensor2"] for l in lecturas],
-        }
-    )
+    # Aquí podrías seguir usando los sensores para promedios, si quieres
+    return JsonResponse({
+        "led": "GREEN",
+        "mensaje": f"Pedido {pedido.id} actualizado a {pedido.estado}",
+        "accion": accion,
+        "sensor1": sensor1,
+        "sensor2": sensor2,
+    })
